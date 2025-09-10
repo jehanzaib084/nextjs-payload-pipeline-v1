@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -36,17 +41,29 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Auto-fix linting and formatting issues
+        id: autofix
         run: |
           echo "🔧 Auto-fixing ESLint issues..."
-          pnpm lint:fix || echo "⚠️ Some ESLint issues couldn't be auto-fixed"
+          lint_output=$(pnpm lint:fix 2>&1 || echo "⚠️ Some ESLint issues couldn't be auto-fixed")
 
           echo "🎨 Auto-formatting code with Prettier..."
-          pnpm format || echo "⚠️ Some formatting issues couldn't be auto-fixed"
+          format_output=$(pnpm format 2>&1 || echo "⚠️ Some formatting issues couldn't be auto-fixed")
+          
+          # Save outputs for summary
+          echo "LINT_OUTPUT<<EOF" >> $GITHUB_OUTPUT
+          echo "$lint_output" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "FORMAT_OUTPUT<<EOF" >> $GITHUB_OUTPUT
+          echo "$format_output" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run ESLint (final check)
+        id: lint
         run: |
           echo "🔍 Running final ESLint check..."
           if ! pnpm lint; then
+            echo "LINT_FAILED=true" >> $GITHUB_OUTPUT
             echo ""
             echo "❌ ESLint found issues that need manual attention:"
             echo ""
@@ -60,6 +77,7 @@ jobs:
             echo ""
             exit 1
           fi
+          echo "LINT_FAILED=false" >> $GITHUB_OUTPUT
 
       - name: Run Prettier check (final check)
         run: |
@@ -77,9 +95,11 @@ jobs:
           fi
 
       - name: TypeScript type checking
+        id: typecheck
         run: |
           echo "🔍 Checking TypeScript types..."
           if ! pnpm type-check; then
+            echo "TYPE_CHECK_FAILED=true" >> $GITHUB_OUTPUT
             echo ""
             echo "❌ TypeScript type errors found!"
             echo ""
@@ -94,38 +114,80 @@ jobs:
             echo ""
             exit 1
           fi
+          echo "TYPE_CHECK_FAILED=false" >> $GITHUB_OUTPUT
 
       - name: Check for Next.js App Router best practices
+        id: nextjs-check
         run: |
           echo "🔍 Checking for Next.js App Router patterns..."
-
+          
+          results=""
+          
           # Check for proper use of 'use server' directive
           server_actions=$(find src -name "*.ts" -o -name "*.tsx" | xargs grep -l "use server" | wc -l)
-          echo "✅ Found $server_actions files with server actions"
+          results+="✅ Found $server_actions files with server actions\n"
 
           # Check for middleware.ts existence
           if [ -f "src/middleware.ts" ] || [ -f "middleware.ts" ]; then
-            echo "✅ Middleware file found"
+            results+="✅ Middleware file found\n"
           else
-            echo "ℹ️ No middleware file detected (optional)"
+            results+="ℹ️ No middleware file detected (optional)\n"
           fi
 
           # Check for proper app directory structure
           if [ -d "src/app" ]; then
-            echo "✅ App Router structure detected"
+            results+="✅ App Router structure detected\n"
           else
-            echo "❌ App Router structure not found"
+            results+="❌ App Router structure not found\n"
+            echo "NEXTJS_CHECK_FAILED=true" >> $GITHUB_OUTPUT
             exit 1
           fi
 
           # Check for layout.tsx files
           layouts=$(find src/app -name "layout.tsx" | wc -l)
-          echo "✅ Found $layouts layout files"
+          results+="✅ Found $layouts layout files\n"
 
           # Check for proper loading.tsx and error.tsx files
           loading_files=$(find src/app -name "loading.tsx" | wc -l)
           error_files=$(find src/app -name "error.tsx" | wc -l)
-          echo "ℹ️ Found $loading_files loading.tsx and $error_files error.tsx files"
+          results+="ℹ️ Found $loading_files loading.tsx and $error_files error.tsx files\n"
+          
+          echo "NEXTJS_RESULTS<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$results" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "NEXTJS_CHECK_FAILED=false" >> $GITHUB_OUTPUT
+
+      - name: Create job summary
+        if: always()
+        run: |
+          echo "# 🏗️ Code Quality Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Results Overview" >> $GITHUB_STEP_SUMMARY
+          echo "- **ESLint:** ${{ steps.lint.outputs.LINT_FAILED == 'true' && '❌ Failed' || '✅ Passed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **TypeScript:** ${{ steps.typecheck.outputs.TYPE_CHECK_FAILED == 'true' && '❌ Failed' || '✅ Passed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Next.js Check:** ${{ steps.nextjs-check.outputs.NEXTJS_CHECK_FAILED == 'true' && '❌ Failed' || '✅ Passed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Auto-fix:** ${{ steps.autofix.outcome == 'success' && '✅ Completed' || '❌ Issues found' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -n "${{ steps.nextjs-check.outputs.NEXTJS_RESULTS }}" ]; then
+            echo "## Next.js App Router Analysis" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.nextjs-check.outputs.NEXTJS_RESULTS }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "## Auto-fix Details" >> $GITHUB_STEP_SUMMARY
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Click to view auto-fix results</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ESLint Auto-fix:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.autofix.outputs.LINT_OUTPUT }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Prettier Format:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.autofix.outputs.FORMAT_OUTPUT }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
 
   payload-validation:
     name: Payload CMS Validation
@@ -151,9 +213,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Validate Payload config
+        id: payload-config
         run: |
           echo "🚀 Validating Payload CMS configuration..."
           if ! pnpm payload generate:types; then
+            echo "PAYLOAD_FAILED=true" >> $GITHUB_OUTPUT
             echo ""
             echo "❌ Payload CMS configuration error!"
             echo ""
@@ -170,22 +234,72 @@ jobs:
             exit 1
           fi
           echo "✅ Payload types generated successfully"
+          echo "PAYLOAD_FAILED=false" >> $GITHUB_OUTPUT
 
       - name: Check Payload collections
+        id: payload-collections
         run: |
           echo "📦 Checking Payload collections..."
           collections=$(find src/collections -name "*.ts" | wc -l)
           echo "✅ Found $collections collection files"
+          
+          # Save collection count
+          echo "COLLECTION_COUNT=$collections" >> $GITHUB_OUTPUT
+          
+          # List collections
+          collection_list=""
+          for file in src/collections/*.ts; do
+            if [ -f "$file" ]; then
+              basename=$(basename "$file" .ts)
+              collection_list+="- $basename\n"
+            fi
+          done
+          
+          echo "COLLECTION_LIST<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$collection_list" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Validate environment variables
+        id: env-check
         run: |
           echo "🔧 Checking required environment variables..."
+          env_results=""
+          
           if [ -f ".env.example" ]; then
-            echo "✅ .env.example found"
+            env_results+="✅ .env.example found\n"
+            env_results+="\n**Required environment variables:**\n"
+            
             cat .env.example | grep -E "^[A-Z_]+=" | while read line; do
               var_name=$(echo $line | cut -d'=' -f1)
+              env_results+="- \`$var_name\`\n"
               echo "📝 Required: $var_name"
             done
+          else
+            env_results+="⚠️ No .env.example file found\n"
+          fi
+          
+          echo "ENV_RESULTS<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$env_results" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Payload summary
+        if: always()
+        run: |
+          echo "# 🎯 Payload CMS Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Results Overview" >> $GITHUB_STEP_SUMMARY
+          echo "- **Payload Config:** ${{ steps.payload-config.outputs.PAYLOAD_FAILED == 'true' && '❌ Failed' || '✅ Passed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Collections:** ${{ steps.payload-collections.outputs.COLLECTION_COUNT }} found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -n "${{ steps.payload-collections.outputs.COLLECTION_LIST }}" ]; then
+            echo "## Collections Found" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.payload-collections.outputs.COLLECTION_LIST }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ -n "${{ steps.env-check.outputs.ENV_RESULTS }}" ]; then
+            echo "## Environment Variables" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.env-check.outputs.ENV_RESULTS }}" >> $GITHUB_STEP_SUMMARY
           fi
 
 
