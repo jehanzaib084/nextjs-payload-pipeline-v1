@@ -666,18 +666,12 @@ export default eslintConfig
 **File**: `.husky/pre-commit`
 
 ```bash
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 pnpm exec lint-staged
 ```
 
 **File**: `.husky/pre-push`
 
 ```bash
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 echo "🚀 Pre-push validation..."
 
 # Run type check
