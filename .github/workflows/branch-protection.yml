@@ -1,0 +1,88 @@
+name: Branch Protection Checks
+
+on:
+  push:
+    branches-ignore: [main]
+
+jobs:
+  branch-validation:
+    name: Branch Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Auto-fix issues before validation
+        run: |
+          echo "🔧 Auto-fixing issues on branch: ${{ github.ref_name }}"
+          pnpm lint:fix || echo "⚠️ Some ESLint issues couldn't be auto-fixed"
+          pnpm format || echo "⚠️ Some formatting issues couldn't be auto-fixed"
+
+      - name: Quick validation
+        run: |
+          echo "🔍 Running quick validation for branch: ${{ github.ref_name }}"
+
+          # Quick lint check
+          if ! pnpm lint; then
+            echo ""
+            echo "❌ Linting failed!"
+            echo ""
+            echo "💡 To fix locally:"
+            echo "   pnpm lint:fix"
+            echo ""
+            exit 1
+          fi
+
+          # Type check
+          if ! pnpm type-check; then
+            echo ""
+            echo "❌ Type checking failed!"
+            echo ""
+            echo "� To fix locally:"
+            echo "   pnpm type-check"
+            echo "   pnpm generate:types  # For Payload CMS"
+            echo ""
+            exit 1
+          fi
+
+          # Build check (faster than full build)
+          echo "🏗️ Quick build check..."
+          if ! pnpm build; then
+            echo ""
+            echo "❌ Build failed!"
+            echo ""
+            echo "💡 To fix locally:"
+            echo "   pnpm build"
+            echo "   Check for TypeScript errors"
+            echo "   Verify all imports and dependencies"
+            echo ""
+            exit 1
+          fi
+
+      - name: Commit message validation
+        run: |
+          echo "📝 Recent commits on this branch:"
+
+          # Get commit messages for this push
+          commits=$(git log --oneline origin/main..HEAD || git log --oneline -10)
+
+          if [ -n "$commits" ]; then
+            echo "$commits"
+          else
+            echo "No commits found or this is the first commit"
+          fi

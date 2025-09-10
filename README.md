@@ -1,64 +1,130 @@
-# Payload Website Template
+# Next.js + Payload CMS Pipeline Project
 
-This is the official [Payload Website Template](https://github.com/payloadcms/payload/blob/main/templates/website). Use it to power websites, blogs, or portfolios from small to enterprise. This repo includes a fully-working backend, enterprise-grade admin panel, and a beautifully designed, production-ready website.
-
-This template is right for you if you are working on:
-
-- A personal or enterprise-grade website, blog, or portfolio
-- A content publishing platform with a fully featured publication workflow
-- Exploring the capabilities of Payload
-
-Core features:
-
-- [Pre-configured Payload Config](#how-it-works)
-- [Authentication](#users-authentication)
-- [Access Control](#access-control)
-- [Layout Builder](#layout-builder)
-- [Draft Preview](#draft-preview)
-- [Live Preview](#live-preview)
-- [On-demand Revalidation](#on-demand-revalidation)
-- [SEO](#seo)
-- [Search](#search)
-- [Redirects](#redirects)
-- [Jobs and Scheduled Publishing](#jobs-and-scheduled-publish)
-- [Website](#website)
-
-## Quick Start
-
-To spin up this example locally, follow these steps:
-
-### Clone
-
-If you have not done so already, you need to have standalone copy of this repo on your machine. If you've already cloned this repo, skip to [Development](#development).
-
-#### Method 1 (recommended)
-
-Go to Payload Cloud and [clone this template](https://payloadcms.com/new/clone/website). This will create a new repository on your GitHub account with this template's code which you can then clone to your own machine.
-
-#### Method 2
-
-Use the `create-payload-app` CLI to clone this template directly to your machine:
+## 🚀 Quick Start
 
 ```bash
-pnpx create-payload-app my-project -t website
+# Install dependencies
+pnpm install
+
+# Setup environment
+cp .env.example .env
+
+# Start development
+pnpm dev
 ```
 
-#### Method 3
-
-Use the `git` CLI to clone this template directly to your machine:
+## 🔧 Code Quality Commands
 
 ```bash
-git clone -n --depth=1 --filter=tree:0 https://github.com/payloadcms/payload my-project && cd my-project && git sparse-checkout set --no-cone templates/website && git checkout && rm -rf .git && git init && git add . && git mv -f templates/website/{.,}* . && git add . && git commit -m "Initial commit"
+# Auto-fix all issues
+pnpm lint:fix && pnpm format
+
+# Check everything
+pnpm type-check && pnpm build
 ```
 
-### Development
+## 📋 Pipeline Features
 
-1. First [clone the repo](#clone) if you have not done so already
-1. `cd my-project && cp .env.example .env` to copy the example environment variables
-1. `pnpm install && pnpm dev` to install dependencies and start the dev server
-1. open `http://localhost:3000` to open the app in your browser
+### ✅ Automated Quality Checks
 
-That's it! Changes made in `./src` will be reflected in your app. Follow the on-screen instructions to login and create your first admin user. Then check out [Production](#production) once you're ready to build and serve your app, and [Deployment](#deployment) when you're ready to go live.
+- **Pre-commit hooks** with auto-fix
+- **GitHub Actions** with detailed error messages
+- **TypeScript** strict checking
+- **Next.js App Router** best practices validation
+- **Payload CMS** configuration validation
+
+### ✅ Developer-Friendly
+
+- **Auto-fixes** linting and formatting issues
+- **Detailed error messages** with solutions
+- **No console.log restrictions**
+- **No branch naming requirements**
+- **Minimal testing overhead**
+
+### ✅ Industry Standards
+
+- **Concurrent workflows** for efficiency
+- **Security auditing**
+- **Build optimization**
+- **Environment validation**
+
+## 📚 Documentation
+
+- **[Pipeline Setup Guide](./docs/PIPELINE_SETUP.md)** - Complete setup instructions and troubleshooting
+- **[Pipeline Migration Guide](./docs/PIPELINE_MIGRATION_GUIDE.md)** - How to copy this pipeline to existing projects
+- **[Copy-Paste Workflows](./docs/COPY_PASTE_WORKFLOWS.md)** - Ready-to-use workflow files for quick migration
+- **[Next.js Best Practices](./docs/NEXT_JS_BEST_PRACTICES.md)** - App Router patterns and examples
+- **[CI/CD Pipeline Details](./docs/CI_CD_PIPELINE.md)** - Detailed workflow documentation
+
+## 🛠️ Tech Stack
+
+- **Next.js 15** with App Router
+- **Payload CMS 3.55**
+- **TypeScript 5.7**
+- **pnpm** package manager
+- **ESLint + Prettier** for code quality
+- **Husky + lint-staged** for Git hooks
+- **GitHub Actions** for CI/CD
+
+## 🔍 What Gets Checked
+
+### Code Quality
+
+- ESLint with auto-fix
+- Prettier formatting
+- TypeScript type checking
+- Import/export validation
+
+### Next.js Patterns
+
+- Server/Client component usage
+- App Router structure
+- Server Actions implementation
+- Middleware patterns
+
+### Payload CMS
+
+- Configuration validation
+- Type generation
+- Collections structure
+- Environment variables
+
+## 💡 Error Resolution
+
+Every error in the pipeline comes with:
+
+- **Clear description** of the problem
+- **Specific fix commands** to run locally
+- **Common solutions** for typical issues
+- **Auto-fix capabilities** where possible
+
+## 🎯 Pipeline Workflows
+
+1. **Code Quality** - Linting, formatting, type checking
+2. **Payload Validation** - CMS configuration and types
+3. **Build & Test** - Production build verification
+4. **Security Audit** - Dependency vulnerability scan
+5. **Deploy Check** - Final deployment readiness
+
+## � Migrate to Existing Project
+
+Want to add this pipeline to your existing Next.js + Payload CMS project? It's easy!
+
+### Quick Migration (5 minutes)
+
+1. **Copy workflow files** from [Copy-Paste Workflows](./docs/COPY_PASTE_WORKFLOWS.md)
+2. **Install dependencies**: `pnpm add -D husky lint-staged`
+3. **Update package.json** with the provided scripts
+4. **Initialize Husky**: `pnpm exec husky init`
+5. **Test**: Make a commit and see auto-formatting in action!
+
+### Detailed Migration
+
+Follow the complete [Pipeline Migration Guide](./docs/PIPELINE_MIGRATION_GUIDE.md) for step-by-step instructions, troubleshooting, and customization options.
+
+---
+
+**Ready to code!** The pipeline handles quality checks automatically, so you can focus on building features. 🎉
 
 ## How it works
 

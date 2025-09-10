@@ -28,10 +28,17 @@ const eslintConfig = [
           caughtErrorsIgnorePattern: '^(_|ignore)',
         },
       ],
+      'no-console': 'off', // Allow console.log
+      // Next.js App Router and Server Components best practices
+      'react/no-unescaped-entities': 'warn',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+      // Payload CMS specific rules
+      '@typescript-eslint/no-var-requires': 'off',
     },
   },
   {
-    ignores: ['.next/'],
+    ignores: ['.next/', 'node_modules/', 'dist/', 'build/', '*.config.*'],
   },
 ]
 
