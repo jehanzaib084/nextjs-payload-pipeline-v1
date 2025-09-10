@@ -147,9 +147,6 @@ Create the pre-commit hook:
 ```bash
 # Create pre-commit hook
 cat > .husky/pre-commit << 'EOF'
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 pnpm exec lint-staged
 EOF
 
@@ -162,9 +159,6 @@ Create the pre-push hook:
 ```bash
 # Create pre-push hook
 cat > .husky/pre-push << 'EOF'
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 echo "🚀 Pre-push validation..."
 
 # Run type check
