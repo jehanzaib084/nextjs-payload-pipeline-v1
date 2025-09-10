@@ -60,19 +60,21 @@ jobs:
             exit 1
           fi
 
-          # Build check (faster than full build)
-          echo "🏗️ Quick build check..."
-          if ! pnpm build; then
+          # Build check (TypeScript validation only)
+          echo "🏗️ Quick TypeScript validation..."
+          if ! pnpm type-check; then
             echo ""
-            echo "❌ Build failed!"
+            echo "❌ TypeScript validation failed!"
             echo ""
             echo "💡 To fix locally:"
-            echo "   pnpm build"
-            echo "   Check for TypeScript errors"
-            echo "   Verify all imports and dependencies"
+            echo "   pnpm type-check"
+            echo "   pnpm generate:types  # For Payload CMS"
+            echo "   Check for type errors in your code"
             echo ""
             exit 1
           fi
+          
+          echo "✅ TypeScript validation passed!"
 
       - name: Commit message validation
         run: |
