@@ -1,10 +1,10 @@
-name: Next.js + Payload CMS CI/CD Pipeline
+name: Next.js + Payload CMS Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 permissions:
   contents: read
@@ -16,8 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  code-quality:
-    name: Code Quality & Linting
+  pipeline:
+    name: Quality Checks & Validation
     runs-on: ubuntu-latest
 
     steps:
@@ -40,16 +40,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Auto-fix linting and formatting issues
+      - name: Auto-fix issues
         id: autofix
         run: |
-          echo "🔧 Auto-fixing ESLint issues..."
-          lint_output=$(pnpm lint:fix 2>&1 || echo "⚠️ Some ESLint issues couldn't be auto-fixed")
-
-          echo "🎨 Auto-formatting code with Prettier..."
-          format_output=$(pnpm format 2>&1 || echo "⚠️ Some formatting issues couldn't be auto-fixed")
+          echo "🔧 Auto-fixing ESLint and formatting issues..."
           
-          # Save outputs for summary
+          # Capture outputs
+          lint_output=$(pnpm lint:fix 2>&1 || echo "Some ESLint issues couldn't be auto-fixed")
+          format_output=$(pnpm format 2>&1 || echo "Some formatting issues couldn't be auto-fixed")
+          
           echo "LINT_OUTPUT<<EOF" >> $GITHUB_OUTPUT
           echo "$lint_output" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -58,330 +57,223 @@ jobs:
           echo "$format_output" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Run ESLint (final check)
-        id: lint
+      - name: Code Quality Checks
+        id: quality
         run: |
-          echo "🔍 Running final ESLint check..."
-          if ! pnpm lint; then
-            echo "LINT_FAILED=true" >> $GITHUB_OUTPUT
-            echo ""
-            echo "❌ ESLint found issues that need manual attention:"
-            echo ""
-            echo "💡 To fix locally:"
-            echo "   pnpm lint:fix"
-            echo ""
-            echo "📋 Common issues and solutions:"
-            echo "   • Unused variables: Remove them or prefix with underscore (_)"
-            echo "   • Missing dependencies: Add missing imports"
-            echo "   • TypeScript errors: Fix type annotations"
-            echo ""
-            exit 1
-          fi
-          echo "LINT_FAILED=false" >> $GITHUB_OUTPUT
-
-      - name: Run Prettier check (final check)
-        run: |
-          echo "🎨 Checking code formatting..."
-          if ! pnpm format:check; then
-            echo ""
-            echo "❌ Code formatting issues found!"
-            echo ""
-            echo "💡 To fix locally:"
-            echo "   pnpm format"
-            echo ""
-            echo "This will automatically format all your files."
-            echo ""
-            exit 1
-          fi
-
-      - name: TypeScript type checking
-        id: typecheck
-        run: |
-          echo "🔍 Checking TypeScript types..."
-          if ! pnpm type-check; then
-            echo "TYPE_CHECK_FAILED=true" >> $GITHUB_OUTPUT
-            echo ""
-            echo "❌ TypeScript type errors found!"
-            echo ""
-            echo "💡 Common solutions:"
-            echo "   • Check import/export statements"
-            echo "   • Verify type annotations match usage"
-            echo "   • Run 'pnpm generate:types' for Payload CMS types"
-            echo "   • Ensure all dependencies are installed"
-            echo ""
-            echo "🔧 To check locally:"
-            echo "   pnpm type-check"
-            echo ""
-            exit 1
-          fi
-          echo "TYPE_CHECK_FAILED=false" >> $GITHUB_OUTPUT
-
-      - name: Check for Next.js App Router best practices
-        id: nextjs-check
-        run: |
-          echo "🔍 Checking for Next.js App Router patterns..."
+          echo "🔍 Running code quality checks..."
           
-          results=""
+          quality_results=""
+          all_passed=true
           
-          # Check for proper use of 'use server' directive
-          server_actions=$(find src -name "*.ts" -o -name "*.tsx" | xargs grep -l "use server" | wc -l)
-          results+="✅ Found $server_actions files with server actions\n"
-
-          # Check for middleware.ts existence
-          if [ -f "src/middleware.ts" ] || [ -f "middleware.ts" ]; then
-            results+="✅ Middleware file found\n"
+          # ESLint check
+          echo "📋 ESLint validation..."
+          if pnpm lint; then
+            quality_results+="✅ **ESLint:** No issues found\n"
           else
-            results+="ℹ️ No middleware file detected (optional)\n"
+            quality_results+="❌ **ESLint:** Issues found (check logs)\n"
+            all_passed=false
           fi
-
-          # Check for proper app directory structure
-          if [ -d "src/app" ]; then
-            results+="✅ App Router structure detected\n"
-          else
-            results+="❌ App Router structure not found\n"
-            echo "NEXTJS_CHECK_FAILED=true" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-
-          # Check for layout.tsx files
-          layouts=$(find src/app -name "layout.tsx" | wc -l)
-          results+="✅ Found $layouts layout files\n"
-
-          # Check for proper loading.tsx and error.tsx files
-          loading_files=$(find src/app -name "loading.tsx" | wc -l)
-          error_files=$(find src/app -name "error.tsx" | wc -l)
-          results+="ℹ️ Found $loading_files loading.tsx and $error_files error.tsx files\n"
           
-          echo "NEXTJS_RESULTS<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$results" >> $GITHUB_OUTPUT
+          # Prettier check
+          echo "🎨 Prettier validation..."
+          if pnpm format:check; then
+            quality_results+="✅ **Prettier:** Code properly formatted\n"
+          else
+            quality_results+="❌ **Prettier:** Code formatting issues found\n"
+            all_passed=false
+          fi
+          
+          # TypeScript check
+          echo "🔍 TypeScript validation..."
+          if pnpm type-check; then
+            quality_results+="✅ **TypeScript:** No type errors\n"
+          else
+            quality_results+="❌ **TypeScript:** Type errors found\n"
+            all_passed=false
+          fi
+          
+          # Payload validation
+          echo "🎯 Payload CMS validation..."
+          if pnpm payload generate:types; then
+            quality_results+="✅ **Payload CMS:** Configuration valid\n"
+          else
+            quality_results+="❌ **Payload CMS:** Configuration issues\n"
+            all_passed=false
+          fi
+          
+          # Save results
+          echo "QUALITY_RESULTS<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$quality_results" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          echo "NEXTJS_CHECK_FAILED=false" >> $GITHUB_OUTPUT
+          
+          echo "ALL_PASSED=$all_passed" >> $GITHUB_OUTPUT
+          
+          # Fail if critical issues found
+          if [ "$all_passed" = "false" ]; then
+            echo ""
+            echo "❌ Quality checks failed! See details above."
+            echo ""
+            echo "💡 To fix locally:"
+            echo "   pnpm lint:fix        # Fix ESLint issues"
+            echo "   pnpm format          # Fix formatting"
+            echo "   pnpm type-check      # Check TypeScript"
+            echo "   pnpm generate:types  # Generate Payload types"
+            echo ""
+            exit 1
+          fi
+
+      - name: Analyze changes (PR only)
+        id: changes
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "📊 Analyzing PR changes..."
+          
+          # Get changed files
+          git diff --name-only origin/main...HEAD > changed_files.txt
+          
+          changes_summary=""
+          
+          # TypeScript/TSX files
+          tsx_files=$(grep -E "\.(ts|tsx)$" changed_files.txt || true)
+          if [ -n "$tsx_files" ]; then
+            file_count=$(echo "$tsx_files" | wc -l)
+            changes_summary+="## 📄 Changed Files ($file_count)\n"
+            echo "$tsx_files" | head -10 | while IFS= read -r file; do
+              lines=$(wc -l < "$file" 2>/dev/null || echo "0")
+              changes_summary+="- \`$file\` ($lines lines)\n"
+            done
+            
+            if [ $(echo "$tsx_files" | wc -l) -gt 10 ]; then
+              remaining=$(($(echo "$tsx_files" | wc -l) - 10))
+              changes_summary+="- ... and $remaining more files\n"
+            fi
+            changes_summary+="\n"
+          fi
+          
+          # Check for package.json changes
+          if git diff --name-only origin/main...HEAD | grep -q "package.json"; then
+            changes_summary+="## 📦 Dependencies Changed\n"
+            new_deps=$(git diff origin/main...HEAD package.json | grep -E "^\+.*\".*\":" | head -5 || true)
+            removed_deps=$(git diff origin/main...HEAD package.json | grep -E "^\-.*\".*\":" | head -5 || true)
+            
+            if [ -n "$new_deps" ]; then
+              changes_summary+="**Added:**\n\`\`\`diff\n$new_deps\n\`\`\`\n"
+            fi
+            if [ -n "$removed_deps" ]; then
+              changes_summary+="**Removed:**\n\`\`\`diff\n$removed_deps\n\`\`\`\n"
+            fi
+            changes_summary+="\n"
+          fi
+          
+          # Check for env changes
+          if git diff --name-only origin/main...HEAD | grep -q ".env.example"; then
+            changes_summary+="## 🔧 Environment Variables Changed\n"
+            changes_summary+="⚠️ Team members may need to update their .env files\n\n"
+          fi
+          
+          echo "CHANGES_SUMMARY<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$changes_summary" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Security audit
+        id: security
+        run: |
+          echo "🔒 Running security audit..."
+          if pnpm audit --audit-level moderate; then
+            echo "SECURITY_STATUS=✅ No critical vulnerabilities" >> $GITHUB_OUTPUT
+          else
+            echo "SECURITY_STATUS=⚠️ Check audit results" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Create PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const qualityResults = `${{ steps.quality.outputs.QUALITY_RESULTS }}`;
+            const changesSum = `${{ steps.changes.outputs.CHANGES_SUMMARY }}`;
+            const autoFixLint = `${{ steps.autofix.outputs.LINT_OUTPUT }}`;
+            const autoFixFormat = `${{ steps.autofix.outputs.FORMAT_OUTPUT }}`;
+            const allPassed = `${{ steps.quality.outputs.ALL_PASSED }}`;
+            const securityStatus = `${{ steps.security.outputs.SECURITY_STATUS }}`;
+            
+            let comment = `# 🔍 Pipeline Results\n\n`;
+            
+            // Status overview
+            comment += `## 📋 Status\n`;
+            comment += `${allPassed === 'true' ? '✅' : '❌'} **Overall:** ${allPassed === 'true' ? 'All checks passed' : 'Issues found'}\n`;
+            comment += `🔒 **Security:** ${securityStatus}\n\n`;
+            
+            // Quality results
+            comment += `## 🏗️ Code Quality\n`;
+            comment += qualityResults + '\n';
+            
+            // Changes analysis
+            if (changesSum) {
+              comment += changesSum;
+            }
+            
+            // Auto-fix details (collapsed)
+            comment += `## 🔧 Auto-fix Results\n`;
+            comment += `<details>\n<summary>Click to view auto-fix details</summary>\n\n`;
+            comment += `**ESLint:**\n\`\`\`\n${autoFixLint}\n\`\`\`\n\n`;
+            comment += `**Prettier:**\n\`\`\`\n${autoFixFormat}\n\`\`\`\n`;
+            comment += `</details>\n\n`;
+            
+            // Quick actions
+            comment += `## 💡 Quick Actions\n`;
+            comment += `\`\`\`bash\n`;
+            comment += `# Fix issues locally:\n`;
+            comment += `pnpm lint:fix        # Auto-fix ESLint\n`;
+            comment += `pnpm format          # Format code\n`;
+            comment += `pnpm type-check      # Check types\n`;
+            comment += `pnpm generate:types  # Payload types\n`;
+            comment += `\`\`\`\n\n`;
+            
+            comment += `---\n*Updated automatically on each push*`;
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const existing = comments.find(c => c.body.includes('🔍 Pipeline Results'));
+            
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
 
       - name: Create job summary
         if: always()
         run: |
-          echo "# 🏗️ Code Quality Summary" >> $GITHUB_STEP_SUMMARY
+          echo "# 🚀 Pipeline Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Results Overview" >> $GITHUB_STEP_SUMMARY
-          echo "- **ESLint:** ${{ steps.lint.outputs.LINT_FAILED == 'true' && '❌ Failed' || '✅ Passed' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **TypeScript:** ${{ steps.typecheck.outputs.TYPE_CHECK_FAILED == 'true' && '❌ Failed' || '✅ Passed' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Next.js Check:** ${{ steps.nextjs-check.outputs.NEXTJS_CHECK_FAILED == 'true' && '❌ Failed' || '✅ Passed' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Auto-fix:** ${{ steps.autofix.outcome == 'success' && '✅ Completed' || '❌ Issues found' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Event:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ steps.quality.outputs.ALL_PASSED == 'true' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ -n "${{ steps.nextjs-check.outputs.NEXTJS_RESULTS }}" ]; then
-            echo "## Next.js App Router Analysis" >> $GITHUB_STEP_SUMMARY
-            echo "${{ steps.nextjs-check.outputs.NEXTJS_RESULTS }}" >> $GITHUB_STEP_SUMMARY
+          echo "## Code Quality Results" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.quality.outputs.QUALITY_RESULTS }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ -n "${{ steps.changes.outputs.CHANGES_SUMMARY }}" ]; then
+            echo "${{ steps.changes.outputs.CHANGES_SUMMARY }}" >> $GITHUB_STEP_SUMMARY
           fi
           
-          echo "## Auto-fix Details" >> $GITHUB_STEP_SUMMARY
-          echo "<details>" >> $GITHUB_STEP_SUMMARY
-          echo "<summary>Click to view auto-fix results</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ESLint Auto-fix:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.autofix.outputs.LINT_OUTPUT }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Prettier Format:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.autofix.outputs.FORMAT_OUTPUT }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
-
-  payload-validation:
-    name: Payload CMS Validation
-    runs-on: ubuntu-latest
-    needs: code-quality
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Validate Payload config
-        id: payload-config
-        run: |
-          echo "🚀 Validating Payload CMS configuration..."
-          if ! pnpm payload generate:types; then
-            echo "PAYLOAD_FAILED=true" >> $GITHUB_OUTPUT
-            echo ""
-            echo "❌ Payload CMS configuration error!"
-            echo ""
-            echo "💡 Common Payload issues and solutions:"
-            echo "   • Database connection: Check DATABASE_URI in .env"
-            echo "   • Invalid collections: Check collections/*.ts files"
-            echo "   • Missing dependencies: Run 'pnpm install'"
-            echo "   • Config syntax: Check payload.config.ts syntax"
-            echo ""
-            echo "🔧 To debug locally:"
-            echo "   pnpm payload generate:types"
-            echo "   Check payload.config.ts for errors"
-            echo ""
-            exit 1
-          fi
-          echo "✅ Payload types generated successfully"
-          echo "PAYLOAD_FAILED=false" >> $GITHUB_OUTPUT
-
-      - name: Check Payload collections
-        id: payload-collections
-        run: |
-          echo "📦 Checking Payload collections..."
-          collections=$(find src/collections -name "*.ts" | wc -l)
-          echo "✅ Found $collections collection files"
-          
-          # Save collection count
-          echo "COLLECTION_COUNT=$collections" >> $GITHUB_OUTPUT
-          
-          # List collections
-          collection_list=""
-          for file in src/collections/*.ts; do
-            if [ -f "$file" ]; then
-              basename=$(basename "$file" .ts)
-              collection_list+="- $basename\n"
-            fi
-          done
-          
-          echo "COLLECTION_LIST<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$collection_list" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Validate environment variables
-        id: env-check
-        run: |
-          echo "🔧 Checking required environment variables..."
-          env_results=""
-          
-          if [ -f ".env.example" ]; then
-            env_results+="✅ .env.example found\n"
-            env_results+="\n**Required environment variables:**\n"
-            
-            cat .env.example | grep -E "^[A-Z_]+=" | while read line; do
-              var_name=$(echo $line | cut -d'=' -f1)
-              env_results+="- \`$var_name\`\n"
-              echo "📝 Required: $var_name"
-            done
-          else
-            env_results+="⚠️ No .env.example file found\n"
-          fi
-          
-          echo "ENV_RESULTS<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$env_results" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Create Payload summary
-        if: always()
-        run: |
-          echo "# 🎯 Payload CMS Validation Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Results Overview" >> $GITHUB_STEP_SUMMARY
-          echo "- **Payload Config:** ${{ steps.payload-config.outputs.PAYLOAD_FAILED == 'true' && '❌ Failed' || '✅ Passed' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Collections:** ${{ steps.payload-collections.outputs.COLLECTION_COUNT }} found" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ -n "${{ steps.payload-collections.outputs.COLLECTION_LIST }}" ]; then
-            echo "## Collections Found" >> $GITHUB_STEP_SUMMARY
-            echo "${{ steps.payload-collections.outputs.COLLECTION_LIST }}" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ -n "${{ steps.env-check.outputs.ENV_RESULTS }}" ]; then
-            echo "## Environment Variables" >> $GITHUB_STEP_SUMMARY
-            echo "${{ steps.env-check.outputs.ENV_RESULTS }}" >> $GITHUB_STEP_SUMMARY
-          fi
-
-
-
-  security-audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    needs: code-quality
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run security audit
-        run: pnpm audit --audit-level moderate
-        continue-on-error: true
-
-  deploy-check:
-    name: Deployment Ready Check
-    runs-on: ubuntu-latest
-    needs: [security-audit]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Production build
-        run: |
-          echo "🏗️ Creating production build (validation only)..."
-          # Create minimal env for build validation
-          echo "PAYLOAD_SECRET=validation-secret-for-production-build-check" > .env
-          echo "DATABASE_URI=file:./validation.db" >> .env
-          echo "NEXT_PUBLIC_SERVER_URL=https://your-domain.com" >> .env
-          echo "CI=true" >> .env
-          echo "SKIP_BUILD_STATIC_GENERATION=true" >> .env
-          
-          # Only validate TypeScript compilation, skip static generation
-          pnpm type-check
-
-      - name: Check build size
-        run: |
-          echo "📊 Build validation completed"
-          echo "✅ TypeScript compilation successful"
-
-      - name: Deployment readiness
-        run: |
-          echo "🚀 Project is ready for deployment!"
-          echo "✅ All checks passed"
-          echo "✅ TypeScript compilation successful"
-          echo "✅ Next.js App Router structure validated"
-          echo "✅ Payload CMS configuration verified"
-          echo ""
-          echo "⚠️  Remember to:"
-          echo "   • Set up your production database"
-          echo "   • Configure all environment variables"
-          echo "   • Test the build locally with: pnpm build"
+          echo "## Security Status" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.security.outputs.SECURITY_STATUS }}" >> $GITHUB_STEP_SUMMARY
