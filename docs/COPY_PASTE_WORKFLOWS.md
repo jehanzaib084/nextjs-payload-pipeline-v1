@@ -674,13 +674,9 @@ pnpm exec lint-staged
 ```bash
 echo "🚀 Pre-push validation..."
 
-# Run type check
+# Run type check only (fast validation)
 echo "🔍 Type checking..."
 pnpm type-check
-
-# Run build to ensure everything compiles
-echo "🏗️ Building project..."
-pnpm build
 
 echo "✅ Pre-push validation complete!"
 ```
