@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Skip validation for branch deletions
-if [[ "$*" == *--delete* ]] || [[ "$*" == *--d* ]]; then
+if echo "$*" | grep -q -- "--delete\|--d"; then
     echo "⏭️  Skipping pre-push validation for branch deletion"
     exit 0
 fi
