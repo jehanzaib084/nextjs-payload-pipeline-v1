@@ -288,7 +288,7 @@ jobs:
             const autoFixLint = `${{ steps.autofix.outputs.LINT_OUTPUT }}`;
             const autoFixFormat = `${{ steps.autofix.outputs.FORMAT_OUTPUT }}`;
             const allPassed = `${{ steps.quality.outputs.ALL_PASSED }}`;
-            const allPassedRerun = `${{ steps.quality_rerun.outputs.ALL_PASSED_RERUN || allPassed }}`;
+            const allPassedRerun = `${{ steps.quality_rerun.outputs.ALL_PASSED_RERUN || steps.quality.outputs.ALL_PASSED }}`;
             const securityStatus = `${{ steps.security.outputs.SECURITY_STATUS }}`;
             
             let comment = `# 🔍 Pipeline Results\n\n`;
