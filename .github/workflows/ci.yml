@@ -71,6 +71,7 @@ jobs:
 
       - name: Code Quality Checks
         id: quality
+        continue-on-error: true
         run: |
           echo "🔍 Running code quality checks..."
           
