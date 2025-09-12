@@ -192,8 +192,8 @@ jobs:
             all_passed=false
           fi
           
-          # Include build status
-          quality_results+="${{ steps.build_check.outputs.BUILD_STATUS }}\n"
+          # Include build status (commented out since build check is disabled)
+          # quality_results+="${{ steps.build_check.outputs.BUILD_STATUS }}\n"
           
           # Save results
           echo "QUALITY_RESULTS_RERUN<<EOF" >> $GITHUB_OUTPUT
@@ -210,6 +210,7 @@ jobs:
           python scripts/gemini_review.py ${{ secrets.GEMINI_API_KEY }} ${{ github.event.pull_request.number }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Analyze changes (PR only)
         id: changes
