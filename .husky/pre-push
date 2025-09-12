@@ -1,3 +1,11 @@
+#!/bin/bash
+
+# Skip validation for branch deletions
+if [[ "$*" == *--delete* ]] || [[ "$*" == *--d* ]]; then
+    echo "⏭️  Skipping pre-push validation for branch deletion"
+    exit 0
+fi
+
 echo "🚀 Pre-push validation..."
 
 # Run type check only (fast validation)
