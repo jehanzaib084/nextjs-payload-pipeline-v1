@@ -31,7 +31,16 @@ def main():
         return
 
     pr_data = pr_response.json()
-    changed_files = pr_data.get('changed_files', [])
+
+    # Get changed files list
+    files_url = f"{pr_url}/files"
+    files_response = requests.get(files_url, headers=headers)
+    if files_response.status_code != 200:
+        print("Failed to fetch files")
+        changed_files = []
+    else:
+        files_data = files_response.json()
+        changed_files = [f['filename'] for f in files_data]
 
     # Get changed file contents
     files_content = {}
