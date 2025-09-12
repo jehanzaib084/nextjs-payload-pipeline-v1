@@ -137,8 +137,74 @@ jobs:
             exit 1
           fi
 
+      - name: AI Auto-fix (if checks failed)
+        id: auto_fix
+        if: steps.quality.outputs.ALL_PASSED == 'false' && github.event_name == 'pull_request'
+        run: |
+          echo "🤖 Running AI auto-fix for failed checks..."
+          pip install google-generativeai
+          python scripts/gemini_fix.py ${{ secrets.GEMINI_API_KEY }} ${{ github.event.pull_request.number }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Re-run Quality Checks (after auto-fix)
+        id: quality_rerun
+        if: steps.quality.outputs.ALL_PASSED == 'false' && github.event_name == 'pull_request'
+        run: |
+          echo "🔄 Re-running code quality checks after auto-fix..."
+          
+          quality_results=""
+          all_passed=true
+          
+          # ESLint check
+          echo "📋 ESLint validation..."
+          if pnpm lint; then
+            quality_results+="✅ **ESLint:** No issues found\n"
+          else
+            quality_results+="❌ **ESLint:** Issues found (check logs)\n"
+            all_passed=false
+          fi
+          
+          # Prettier check
+          echo "🎨 Prettier validation..."
+          if pnpm format:check; then
+            quality_results+="✅ **Prettier:** Code properly formatted\n"
+          else
+            quality_results+="❌ **Prettier:** Code formatting issues found\n"
+            all_passed=false
+          fi
+          
+          # TypeScript check
+          echo "🔍 TypeScript validation..."
+          if pnpm type-check; then
+            quality_results+="✅ **TypeScript:** No type errors\n"
+          else
+            quality_results+="❌ **TypeScript:** Type errors found\n"
+            all_passed=false
+          fi
+          
+          # Payload validation
+          echo "🎯 Payload CMS validation..."
+          if pnpm payload generate:types; then
+            quality_results+="✅ **Payload CMS:** Configuration valid\n"
+          else
+            quality_results+="❌ **Payload CMS:** Configuration issues\n"
+            all_passed=false
+          fi
+          
+          # Include build status
+          quality_results+="${{ steps.build_check.outputs.BUILD_STATUS }}\n"
+          
+          # Save results
+          echo "QUALITY_RESULTS_RERUN<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$quality_results" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "ALL_PASSED_RERUN=$all_passed" >> $GITHUB_OUTPUT
+
       - name: AI Code Review with Gemini
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && (steps.quality.outputs.ALL_PASSED == 'true' || steps.quality_rerun.outputs.ALL_PASSED_RERUN == 'true')
         run: |
           echo "🤖 Running AI review with Gemini..."
           pip install google-generativeai
@@ -216,22 +282,31 @@ jobs:
         with:
           script: |
             const qualityResults = `${{ steps.quality.outputs.QUALITY_RESULTS }}`;
+            const qualityResultsRerun = `${{ steps.quality_rerun.outputs.QUALITY_RESULTS_RERUN || '' }}`;
             const changesSum = `${{ steps.changes.outputs.CHANGES_SUMMARY }}`;
             const autoFixLint = `${{ steps.autofix.outputs.LINT_OUTPUT }}`;
             const autoFixFormat = `${{ steps.autofix.outputs.FORMAT_OUTPUT }}`;
             const allPassed = `${{ steps.quality.outputs.ALL_PASSED }}`;
+            const allPassedRerun = `${{ steps.quality_rerun.outputs.ALL_PASSED_RERUN || allPassed }}`;
             const securityStatus = `${{ steps.security.outputs.SECURITY_STATUS }}`;
             
             let comment = `# 🔍 Pipeline Results\n\n`;
             
             // Status overview
             comment += `## 📋 Status\n`;
-            comment += `${allPassed === 'true' ? '✅' : '❌'} **Overall:** ${allPassed === 'true' ? 'All checks passed' : 'Issues found'}\n`;
+            comment += `${allPassedRerun === 'true' ? '✅' : '❌'} **Overall:** ${allPassedRerun === 'true' ? 'All checks passed' : 'Issues found'}\n`;
             comment += `🔒 **Security:** ${securityStatus}\n\n`;
             
             // Quality results
             comment += `## 🏗️ Code Quality\n`;
-            comment += qualityResults + '\n';
+            if (qualityResultsRerun) {
+              comment += `**After Auto-fix:**\n${qualityResultsRerun}\n`;
+              if (allPassed === 'false') {
+                comment += `**Before Auto-fix:**\n${qualityResults}\n`;
+              }
+            } else {
+              comment += qualityResults + '\n';
+            }
             
             // Changes analysis
             if (changesSum) {
