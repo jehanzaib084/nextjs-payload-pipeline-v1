@@ -22,7 +22,8 @@ def main():
     # Configure Gemini
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        # Use Gemini 2.5 Flash for better free tier limits (10 RPM vs 5 RPM for Pro)
+        model = genai.GenerativeModel('gemini-2.5-flash')
     except Exception as e:
         print(f"Error configuring Gemini: {e}")
         sys.exit(1)
@@ -81,13 +82,13 @@ def main():
         print("No changed files found or unable to fetch files")
         return
 
-    # Get changed file contents
+    # Get changed file contents (optimized for free tier)
     files_content = {}
-    for file in changed_files[:5]:  # Limit to prevent overload
+    for file in changed_files[:3]:  # Reduced to 3 files to stay within token limits
         try:
             if os.path.exists(file):
                 with open(file, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()[:3000]  # Limit content size
+                    content = f.read()[:2000]  # Reduced to 2k chars per file
                     files_content[file] = content
         except (IOError, OSError, UnicodeDecodeError) as e:
             print(f"Warning: Could not read file {file}: {e}")
@@ -97,34 +98,35 @@ def main():
         print("No readable files found in the changeset")
         return
 
-    # Prepare prompt for Gemini
+    # Prepare prompt for Gemini (optimized for free tier token limits)
     prompt = f"""
-    The following files have code quality issues (linting, formatting, TypeScript errors). Please fix them according to best practices.
+    Fix code quality issues in these files. Focus on critical fixes only.
 
-    Changed Files:
+    Files with issues:
     """
     for file, content in files_content.items():
         prompt += f"\n**{file}:**\n```\n{content}\n```\n"
 
     prompt += """
-    Provide the fixed code for each file. Focus on:
-    - Fixing syntax errors
-    - Removing unused variables
-    - Fixing formatting issues
-    - Ensuring TypeScript compliance
-    - Following React/Next.js best practices
+    Fix only these issues:
+    - Syntax errors
+    - Unused variables
+    - TypeScript errors
+    - Critical formatting issues
 
-    Output the fixes in the format:
+    Output format:
     **File: filename**
     ```typescript
     fixed code here
     ```
     
-    Only provide complete, working file contents. Do not include partial fixes or comments about what to change.
+    Provide complete, working file contents only.
     """
 
-    # Generate fixes with retry logic
-    max_retries = 3
+    # Generate fixes with improved retry logic for rate limits
+    max_retries = 5  # Increase retries for rate limits
+    base_delay = 5  # Start with 5 second delay
+    
     for attempt in range(max_retries):
         try:
             response = model.generate_content(prompt)
@@ -134,17 +136,44 @@ def main():
             else:
                 print(f"Empty response from Gemini (attempt {attempt + 1})")
                 if attempt < max_retries - 1:
-                    time.sleep(2)
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    print(f"Waiting {delay} seconds before retry...")
+                    time.sleep(delay)
                 else:
                     print("Failed to get valid response from Gemini")
                     return
         except Exception as e:
-            print(f"Error generating fixes (attempt {attempt + 1}): {e}")
-            if attempt < max_retries - 1:
-                time.sleep(2)
+            error_msg = str(e)
+            print(f"Error generating fixes (attempt {attempt + 1}): {error_msg}")
+            
+            # Handle rate limit errors specifically
+            if "429" in error_msg or "quota" in error_msg.lower():
+                if attempt < max_retries - 1:
+                    # Extract retry delay from error if available
+                    retry_delay = 60  # Default 60 seconds for rate limits
+                    if "retry_delay" in error_msg:
+                        try:
+                            import re
+                            delay_match = re.search(r'seconds: (\d+)', error_msg)
+                            if delay_match:
+                                retry_delay = int(delay_match.group(1)) + 5  # Add 5 sec buffer
+                        except:
+                            pass
+                    
+                    print(f"Rate limit hit. Waiting {retry_delay} seconds before retry...")
+                    time.sleep(retry_delay)
+                else:
+                    print("Rate limit exceeded. Consider using paid tier for higher limits.")
+                    return
             else:
-                print("Failed to generate fixes after multiple attempts")
-                return
+                # Non-rate-limit errors: use exponential backoff
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    print(f"Waiting {delay} seconds before retry...")
+                    time.sleep(delay)
+                else:
+                    print("Failed to generate fixes after multiple attempts")
+                    return
 
     # Parse and apply fixes (improved parsing)
     if not parse_and_apply_fixes(fixes):
