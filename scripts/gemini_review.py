@@ -75,9 +75,10 @@ def main():
         return
 
     # Get additional context: recent commits and key files
+    changed_files = get_changed_files(owner, repo_name, pr_number, headers)
     recent_commits = get_recent_commits()
     key_files_content = get_key_files_content()
-    related_files_content = get_related_files_content(pr_data)
+    related_files_content = get_related_files_content(changed_files)
     next_version, react_version = get_project_versions()
 
     # Prepare context section
@@ -152,6 +153,23 @@ def main():
     else:
         print("❌ Failed to post review comment")
 
+def get_changed_files(owner, repo_name, pr_number, headers):
+    """Get list of changed files in the PR"""
+    files_url = f"https://api.github.com/repos/{owner}/{repo_name}/pulls/{pr_number}/files"
+    try:
+        files_response = requests.get(files_url, headers=headers, timeout=30)
+        if files_response.status_code != 200:
+            print(f"Failed to fetch files: {files_response.status_code}")
+            return []
+        files_data = files_response.json()
+        return [f['filename'] for f in files_data if f.get('filename')]
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching files: {e}")
+        return []
+    except json.JSONDecodeError as e:
+        print(f"Error parsing files data: {e}")
+        return []
+
 def get_recent_commits():
     """Get recent commit history"""
     try:
@@ -178,10 +196,9 @@ def get_key_files_content():
     
     return key_files_content
 
-def get_related_files_content(pr_data):
+def get_related_files_content(changed_files):
     """Get content of files related to changed files"""
     related_files_content = {}
-    changed_files = pr_data.get('changed_files', [])
     
     # Simple heuristic: include files in same directories or similar types
     for changed_file in changed_files[:5]:  # Limit to 5 changed files
