@@ -26,8 +26,6 @@ mkdir -p .github/workflows
 ```bash
 # Copy all three workflow files
 cp /path/to/this/project/.github/workflows/ci.yml .github/workflows/
-cp /path/to/this/project/.github/workflows/pr-checks.yml .github/workflows/
-cp /path/to/this/project/.github/workflows/branch-protection.yml .github/workflows/
 ```
 
 Or manually create each file with the content provided below.
@@ -165,10 +163,6 @@ echo "🚀 Pre-push validation..."
 echo "🔍 Type checking..."
 pnpm type-check
 
-# Run build to ensure everything compiles
-echo "🏗️ Building project..."
-pnpm build
-
 echo "✅ Pre-push validation complete!"
 EOF
 
@@ -224,9 +218,8 @@ After migration, ensure these files exist in your project:
 your-project/
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml
-│       ├── pr-checks.yml
-│       └── branch-protection.yml
+│       └── ci.yml
+|
 ├── .husky/
 │   ├── pre-commit
 │   └── pre-push
